@@ -3,6 +3,7 @@ package com.example.Authentication.controller;
 import com.example.Authentication.payload.AuthResponse;
 import com.example.Authentication.payload.LoginDto;
 import com.example.Authentication.payload.RegisterDto;
+import com.example.Authentication.payload.UpdatePasswordDto;
 import com.example.Authentication.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -37,5 +38,15 @@ public class AuthController {
     public ResponseEntity<String> validate(@RequestParam("token") String token){
         authService.validateToken(token);
         return ResponseEntity.ok("Token is valid");
+    }
+
+    @PostMapping("/update")
+    public ResponseEntity<String> updatePassword(
+            @RequestBody UpdatePasswordDto updatePasswordDto){
+        String s = authService.updatePassword(updatePasswordDto);
+        if(s.contains("The new password cannot be same as old password")){
+            return new ResponseEntity<>(s, HttpStatus.BAD_REQUEST);
+        }
+        return ResponseEntity.ok(s);
     }
 }

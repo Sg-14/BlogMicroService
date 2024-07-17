@@ -76,7 +76,8 @@ public class AuthServiceImplementation implements AuthService {
     @Override
     public String updatePassword(UpdatePasswordDto updatePasswordDto) {
         String username = updatePasswordDto.getUsername();
-        UserCredentials userCredentials = userCredentialsRepository.findByUsernameOrEmail(username, username).orElseThrow();
+        UserCredentials userCredentials = userCredentialsRepository.findByUsernameOrEmail(username, username).orElseThrow(
+                ()->new RuntimeException("User not found"));
         String oldPassword = userCredentials.getPassword();
         String newPassword = updatePasswordDto.getNewPassword();
 
