@@ -22,6 +22,15 @@ public class JwtTokenProvider {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
     }
 
+    public String getUsername(String token){
+        return Jwts.parser().
+                verifyWith((SecretKey) key())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getSubject();
+    }
+
     public boolean validateToken(String token){
         try{
             Jwts.parser()

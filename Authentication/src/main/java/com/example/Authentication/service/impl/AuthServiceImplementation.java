@@ -3,9 +3,11 @@ package com.example.Authentication.service.impl;
 import com.example.Authentication.entity.UserCredentials;
 import com.example.Authentication.payload.LoginDto;
 import com.example.Authentication.payload.RegisterDto;
+import com.example.Authentication.payload.UpdatePasswordDto;
 import com.example.Authentication.repository.UserCredentialsRepository;
 import com.example.Authentication.security.JwtTokenProvider;
 import com.example.Authentication.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -14,6 +16,8 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.Objects;
 
 @Service
 public class AuthServiceImplementation implements AuthService {
@@ -29,6 +33,7 @@ public class AuthServiceImplementation implements AuthService {
 
     @Autowired
     PasswordEncoder passwordEncoder;
+
 
     @Override
     public String Login(LoginDto loginDto) {
@@ -66,5 +71,32 @@ public class AuthServiceImplementation implements AuthService {
     @Override
     public void validateToken(String token){
         jwtTokenProvider.validateToken(token);
+    }
+
+    @Override
+    public String updatePassword(UpdatePasswordDto updatePasswordDto) {
+        String username = updatePasswordDto.getUsername();
+        UserCredentials userCredentials = userCredentialsRepository.findByUsernameOrEmail(username, username).orElseThrow();
+        String oldPassword = userCredentials.getPassword();
+        String newPassword = updatePasswordDto.getNewPassword();
+
+        // Check if the new password matches any of the old passwords
+        for (String oldPwd : userCredentials.getOldPassword()) {
+            if (passwordEncoder.matches(newPassword, oldPwd)) {
+                return "The new password cannot be the same as any of the old passwords";
+            }
+        }
+
+        // Encode the new password
+        String encodedNewPassword = passwordEncoder.encode(newPassword);
+
+        // Add the current password to the old passwords collection
+        userCredentials.getOldPassword().add(oldPassword);
+
+        // Update the password
+        userCredentials.setPassword(encodedNewPassword);
+        userCredentialsRepository.save(userCredentials);
+
+        return "Password Updated Successfully";
     }
 }
