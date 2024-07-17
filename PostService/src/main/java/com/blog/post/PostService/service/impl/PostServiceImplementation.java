@@ -6,6 +6,8 @@ import com.blog.post.PostService.entity.Post;
 import com.blog.post.PostService.payload.*;
 import com.blog.post.PostService.repository.PostRepository;
 import com.blog.post.PostService.service.PostService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -16,10 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class PostServiceImplementation implements PostService {
@@ -49,7 +48,10 @@ public class PostServiceImplementation implements PostService {
         return postResponse;
     }
 
+    public static int attempts = 0;
+
     @Override
+    @CircuitBreaker(name = "commentBreaker", fallbackMethod = "getAllPostsFallBack")
     public PostResponse getAllPosts(int pageNo, int pageSize, String sortBy, String sortDir){
 
         Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
@@ -88,9 +90,48 @@ public class PostServiceImplementation implements PostService {
 
         return postResponse;
     }
+    public PostResponse getAllPostsFallBack(int pageNo, int pageSize, String sortBy, String sortDir, Throwable throwable){
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
+        Page<Post> pages = postRepository.findAll(pageable);
+
+        List<Post> posts = pages.getContent();
+        List<PostDto> postDtos = posts.stream().map(post -> postToDto(post)).toList();
+        List<PostCommentDto> postCommentDtos = new ArrayList<>();
+
+        postDtos.forEach(
+                postDto -> {
+                    PostCommentDto postCommentDto = PostCommentDtoMapper.postCommentDtoMapper(
+                            postDto, Collections.emptyList(), "");
+                    postCommentDtos.add(postCommentDto);
+                }
+        );
+
+        PostResponse postResponse = new PostResponse();
+
+        postResponse.setContent(postCommentDtos);
+        postResponse.setPageNo(pages.getNumber());
+        postResponse.setPageSize(pages.getSize());
+        postResponse.setTotalPages(pages.getTotalPages());
+        postResponse.setLast(pages.isLast());
+        postResponse.setTotalContent(pages.getTotalElements());
+
+
+        return postResponse;
+    }
 
     @Override
-    public PostCommentDto getPost(long id){
+    @Retry(name = "commentBreaker", fallbackMethod = "getPostFallBack")
+    public PostCommentDto getPost(long id, Map<String, String> header){
+        System.out.println(attempts);
+        attempts++;
+
+        String username = header.get("username");
+
+        System.out.println(username);
+
         Post byId = postRepository.findById(id).orElseThrow(()-> new RuntimeException("Post Not Found"));
         PostDto postDto = postToDto(byId);
 
@@ -100,6 +141,14 @@ public class PostServiceImplementation implements PostService {
         String categoryName = category.getCategoryName();
         PostCommentDto postCommentDto =
                 PostCommentDtoMapper.postCommentDtoMapper(postDto, comments, categoryName);
+        return postCommentDto;
+    }
+
+    public PostCommentDto getPostFallBack(long id, Map<String, String> header, Throwable throwable){
+        Post post = postRepository.findById(id).orElseThrow();
+        PostDto postDto = postToDto(post);
+        PostCommentDto postCommentDto = PostCommentDtoMapper.
+                postCommentDtoMapper(postDto, Collections.emptyList(), "");
         return postCommentDto;
     }
 
@@ -167,4 +216,3 @@ public class PostServiceImplementation implements PostService {
         return comments;
     }
 }
-

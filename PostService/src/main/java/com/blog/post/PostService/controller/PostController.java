@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/posts")
@@ -30,8 +31,9 @@ public class PostController {
     }
 
     @GetMapping("{id}")
-    public ResponseEntity<PostCommentDto> getPost(@PathVariable long id){
-        return ResponseEntity.ok(postService.getPost(id));
+    public ResponseEntity<PostCommentDto> getPost(
+            @PathVariable long id, @RequestHeader Map<String, String> header){
+        return ResponseEntity.ok(postService.getPost(id, header));
     }
 
     @PostMapping("")
